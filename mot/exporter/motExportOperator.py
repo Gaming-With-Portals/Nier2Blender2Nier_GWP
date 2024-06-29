@@ -16,6 +16,12 @@ class ExportNierMot(bpy.types.Operator, ExportHelper):
         description="Patch existing mot file instead of creating a new one",
         default=False
     )
+    exportAllActions: bpy.props.BoolProperty(
+        name="Export all actions",
+        description="Exports every action instead of just the main one",
+        default=False
+    )
+    
     filename_ext = ".mot"
     filter_glob: bpy.props.StringProperty(default="*.mot", options={'HIDDEN'})
 
@@ -26,7 +32,7 @@ class ExportNierMot(bpy.types.Operator, ExportHelper):
             self.report({'ERROR'}, "File does not exist")
             return {'CANCELLED'}
         
-        exportMot(self.filepath, self.patchExisting)
+        exportMot(self.filepath, self.patchExisting, self.exportAllActions)
 
         self.report({'INFO'}, "Exported mot file")
 

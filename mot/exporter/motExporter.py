@@ -5,7 +5,6 @@ import os
 from typing import Callable, List
 from ..common.motUtils import KeyFrame, Spline, focalLengthToFov, getArmatureObject, getCameraObject, getCameraTarget, cameraId, camTargetId
 from ..common.mot import MotFile, MotHeader, MotRecord, MotInterpolValues, MotInterpolSplines
-
 class AnimationObject:
 	curve: bpy.types.FCurve
 	property: str
@@ -217,44 +216,95 @@ def addAdditionPatchRecords(path: str, currentRecords: List[MotRecord]):
 	currentRecords.sort(key=lambda record: record.boneIndex * 10 + record.propertyIndex)
 
 
-def exportMot(path: str, patchExisting: bool):
-	arm = getArmatureObject()
-	cam = getCameraObject(False)
-	target = getCameraTarget(False)
-	if arm is None and cam is None and target is None:
-		raise Exception("No armature or camera found")
+def exportMot(path: str, patchExisting: bool, exportAllActions : bool):
+	z=0
+	# Code could be more efficent but... eh too much work
 	
-	mot = MotFile()
-	mot.header = MotHeader()
-	mot.records = []
-	mot.header.fillDefaults()
-	mot.header.frameCount = bpy.context.scene.frame_end + 1
-	mot.header.recordsOffset = 44
+	# If export all actions button is enabled from exporter prompt
+	if exportAllActions:
+		# Loop through all actions in the action editor and load them
+		for a in bpy.data.actions:
+					z+=1
+					bpy.ops.object.mode_set(mode="POSE")
+					bpy.ops.pose.select_all(action="SELECT")
+					bpy.ops.pose.transforms_clear()
+									
+     
+					arm = getArmatureObject()
+					cam = getCameraObject(False)
+					target = getCameraTarget(False)
+					if arm is None and cam is None and target is None:
+						raise Exception("No armature or camera found")
+							
+					mot = MotFile()
+					mot.header = MotHeader()
+					mot.records = []
+					mot.header.fillDefaults()
+					mot.header.frameCount = bpy.context.scene.frame_end + 1
+					mot.header.recordsOffset = 44
+						# if patching, inject records of missing bones
+					if patchExisting:
+						addAdditionPatchRecords(path, mot.records)
+					if arm is not None:
+						appendObjAnimations(path, arm, mot)
+					if cam is not None:
+						appendObjAnimations(path, cam, mot, cameraId)
+					if target is not None:
+						appendObjAnimations(path, target, mot, camTargetId)
 
-	# if patching, inject records of missing bones
-	if patchExisting:
-		addAdditionPatchRecords(path, mot.records)
+					# determine interpolation offsets relative to record position
+					offset = mot.header.recordsOffset + (len(mot.records) + 1) * 12
+					for i, record in enumerate(mot.records):
+						
+						if record.interpolation is None:
+							continue
+						curRecordOffset = mot.header.recordsOffset + i * 12
+						record.interpolationsOffset = offset - curRecordOffset 
+						offset += record.interpolation.size()
+						
+						with open(path + "_" + str(z), "wb") as f:
+							mot.writeToFile(f)
+						print("Done (but cooler)")
 
-	if arm is not None:
-		appendObjAnimations(path, arm, mot)
-	if cam is not None:
-		appendObjAnimations(path, cam, mot, cameraId)
-	if target is not None:
-		appendObjAnimations(path, target, mot, camTargetId)
-	
-	# determine interpolation offsets relative to record position
-	offset = mot.header.recordsOffset + (len(mot.records) + 1) * 12
-	for i, record in enumerate(mot.records):
-		if record.interpolation is None:
-			continue
-		curRecordOffset = mot.header.recordsOffset + i * 12
-		record.interpolationsOffset = offset - curRecordOffset 
-		offset += record.interpolation.size()
-	
-	with open(path, "wb") as f:
-		mot.writeToFile(f)
+	# Run Space's original code if the button isn't selected
+	elif not exportAllActions:
+		arm = getArmatureObject()
+		cam = getCameraObject(False)
+		target = getCameraTarget(False)
+		if arm is None and cam is None and target is None:
+			raise Exception("No armature or camera found")
+		
+		mot = MotFile()
+		mot.header = MotHeader()
+		mot.records = []
+		mot.header.fillDefaults()
+		mot.header.frameCount = bpy.context.scene.frame_end + 1
+		mot.header.recordsOffset = 44
 
-	print("Done ;)")
+		# if patching, inject records of missing bones
+		if patchExisting:
+			addAdditionPatchRecords(path, mot.records)
+
+		if arm is not None:
+			appendObjAnimations(path, arm, mot)
+		if cam is not None:
+			appendObjAnimations(path, cam, mot, cameraId)
+		if target is not None:
+			appendObjAnimations(path, target, mot, camTargetId)
+		
+		# determine interpolation offsets relative to record position
+		offset = mot.header.recordsOffset + (len(mot.records) + 1) * 12
+		for i, record in enumerate(mot.records):
+			if record.interpolation is None:
+				continue
+			curRecordOffset = mot.header.recordsOffset + i * 12
+			record.interpolationsOffset = offset - curRecordOffset 
+			offset += record.interpolation.size()
+		
+		with open(path, "wb") as f:
+			mot.writeToFile(f)
+
+		print("Done ;)")
 
 def appendObjAnimations(
 	path: str,
