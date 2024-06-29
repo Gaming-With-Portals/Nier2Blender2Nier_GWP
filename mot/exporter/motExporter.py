@@ -223,8 +223,12 @@ def exportMot(path: str, patchExisting: bool, exportAllActions : bool):
 	# If export all actions button is enabled from exporter prompt
 	if exportAllActions:
 		# Loop through all actions in the action editor and load them
-		for a in bpy.data.actions:
+		for action in bpy.data.actions:
 					z+=1
+					for obj in bpy.context.selected_objects:
+						obj.animation_data.action = action
+     
+     
 					bpy.ops.object.mode_set(mode="POSE")
 					bpy.ops.pose.select_all(action="SELECT")
 					bpy.ops.pose.transforms_clear()
